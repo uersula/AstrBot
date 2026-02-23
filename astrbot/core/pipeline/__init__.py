@@ -9,6 +9,7 @@ from .process_stage.stage import ProcessStage
 from .rate_limit_check.stage import RateLimitStage
 from .respond.stage import RespondStage
 from .result_decorate.stage import ResultDecorateStage
+from .risk_control.stage import RiskControlStage
 from .session_status_check.stage import SessionStatusCheckStage
 from .waking_check.stage import WakingCheckStage
 from .whitelist_check.stage import WhitelistCheckStage
@@ -20,6 +21,7 @@ STAGES_ORDER = [
     "SessionStatusCheckStage",  # 检查会话是否整体启用
     "RateLimitStage",  # 检查会话是否超过频率限制
     "ContentSafetyCheckStage",  # 检查内容安全
+    "RiskControlStage",  # 实时风控: 钓鱼链接 / Prompt Injection 检测与自动拦截
     "PreProcessStage",  # 预处理
     "ProcessStage",  # 交由 Stars 处理（a.k.a 插件），或者 LLM 调用
     "ResultDecorateStage",  # 处理结果，比如添加回复前缀、t2i、转换为语音 等
@@ -35,6 +37,7 @@ __all__ = [
     "RateLimitStage",
     "RespondStage",
     "ResultDecorateStage",
+    "RiskControlStage",
     "SessionStatusCheckStage",
     "WakingCheckStage",
     "WhitelistCheckStage",

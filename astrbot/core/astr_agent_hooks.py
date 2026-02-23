@@ -10,6 +10,51 @@ from astrbot.core.astr_agent_context import AstrAgentContext
 from astrbot.core.pipeline.context_utils import call_event_hook
 from astrbot.core.star.star_handler import EventType
 
+from astrbot import logger
+
+
+class SecurityToolCallBlocked(Exception):
+    """安全网关拦截工具调用时抛出的异常"""
+
+    def __init__(self, reason: str) -> None:
+        self.reason = reason
+        super().__init__(f"[SECURITY] 工具调用被拦截: {reason}")
+
+
+# 全局安全钩子实例（延迟初始化）
+_security_hook = None
+
+
+def _get_security_hook():
+    """延迟初始化安全钩子执行器"""
+    global _security_hook
+    if _security_hook is None:
+        try:
+            from astrbot.core.security.runtime_hook import SecurityHookExecutor
+            from astrbot.core.security.security_config import SecurityConfig
+
+            config = SecurityConfig()  # 使用默认配置
+            _security_hook = SecurityHookExecutor(config)
+            logger.info("[SecurityHook] 安全钩子执行器已初始化")
+        except Exception as e:
+            logger.warning(f"[SecurityHook] 安全钩子初始化失败: {e}")
+            _security_hook = None
+    return _security_hook
+
+
+def init_security_hook(config_dict: dict) -> None:
+    """根据配置初始化安全钩子（由外部调用）"""
+    global _security_hook
+    try:
+        from astrbot.core.security.runtime_hook import SecurityHookExecutor
+        from astrbot.core.security.security_config import SecurityConfig
+
+        config = SecurityConfig.from_dict(config_dict)
+        _security_hook = SecurityHookExecutor(config)
+        logger.info("[SecurityHook] 安全钩子执行器已根据配置初始化")
+    except Exception as e:
+        logger.warning(f"[SecurityHook] 安全钩子配置初始化失败: {e}")
+
 
 class MainAgentHooks(BaseAgentRunHooks[AstrAgentContext]):
     async def on_agent_done(self, run_context, llm_response) -> None:
@@ -32,6 +77,17 @@ class MainAgentHooks(BaseAgentRunHooks[AstrAgentContext]):
         tool: FunctionTool[Any],
         tool_args: dict | None,
     ) -> None:
+        # ── Runtime Hook: 零信任鉴权网关 ──
+        security_hook = _get_security_hook()
+        if security_hook and tool_args:
+            allowed, reason = security_hook.check_tool_call(
+                tool=tool,
+                run_context=run_context,
+                tool_args=tool_args,
+            )
+            if not allowed:
+                raise SecurityToolCallBlocked(reason)
+
         await call_event_hook(
             run_context.context.event,
             EventType.OnUsingLLMToolEvent,
@@ -86,3 +142,4 @@ class EmptyAgentHooks(BaseAgentRunHooks[AstrAgentContext]):
 
 
 MAIN_AGENT_HOOKS = MainAgentHooks()
+
